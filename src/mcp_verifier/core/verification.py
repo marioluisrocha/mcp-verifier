@@ -188,4 +188,7 @@ class VerificationGraph:
         
     def _needs_security_fixes(self, state: VerificationState) -> bool:
         """Check if security issues need to be fixed."""
-        return len(state.security_issues) > 0
+        return len(state.security_issues) > 9 and any(
+            'high' in v.severity.lower() 
+            for v in state.security_issues
+        )
