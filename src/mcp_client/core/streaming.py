@@ -1,11 +1,10 @@
 """Streaming implementation for MCP client."""
 
-import asyncio
 from typing import AsyncGenerator, Dict, Any, Optional
 from dataclasses import dataclass
 from anthropic import AsyncAnthropic, AsyncStream
 
-from .session import SessionManager
+from src.mcp_client.core.session import SessionManager
 
 @dataclass
 class StreamingMessage:

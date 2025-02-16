@@ -1,20 +1,21 @@
-"""Streamlit-based chat interface for MCP client."""
+"""Streamlit-based chat interface with LangGraph integration."""
 
 import streamlit as st
 from typing import Optional
 import asyncio
 from dataclasses import dataclass, field
+from langchain_core.messages import HumanMessage, AIMessage, FunctionMessage
 
-from ..core.session import SessionManager
-from ..core.streaming import StreamingManager
-from ..core.agent import AgentManager, AgentState
+from src.mcp_client.core.session import SessionManager
+from src.mcp_client.utils.graph import StreamingAgentExecutor
+from src.mcp_client.utils.mcp import ToolDefinition, MCPUtils
 
 @dataclass
 class ChatState:
     """Maintains chat interface state."""
     messages: list = field(default_factory=list)
     connected_servers: dict = field(default_factory=dict)
-    agent_state: Optional[AgentState] = None
+    current_tools: list = field(default_factory=list)
 
 def initialize_state() -> ChatState:
     """Initialize or get chat state."""
@@ -40,6 +41,17 @@ async def handle_server_connection(state: ChatState,
     try:
         connection = await session_manager.connect_server(server_name, script_path)
         state.connected_servers[server_name] = connection
+        
+        # Update available tools
+        for tool in connection.tools:
+            tool_def = ToolDefinition(
+                name=tool['name'],
+                description=tool['description'],
+                input_schema=tool['input_schema'],
+                server_name=server_name
+            )
+            state.current_tools.append(MCPUtils.convert_tool_to_openai_function(tool_def))
+            
         st.success(f"Connected to server: {server_name}")
         
         # Show available tools
@@ -50,59 +62,74 @@ async def handle_server_connection(state: ChatState,
         st.error(f"Failed to connect to server {server_name}: {str(e)}")
 
 async def process_message(state: ChatState,
-                         streaming_manager: StreamingManager,
-                         agent_manager: AgentManager,
+                         session_manager: SessionManager,
+                         agent_executor: StreamingAgentExecutor,
                          message: str):
     """Process a user message and stream the response."""
     
-    # Create placeholder for streaming response
+    # Create message placeholders
     response_placeholder = st.empty()
     tool_placeholder = st.empty()
-    current_response = []
     
-    # Initialize agent if needed
-    if not state.agent_state:
-        state.agent_state = AgentState()
+    # Convert message to LangChain format
+    lc_messages = []
+    for msg in state.messages:
+        if msg["role"] == "user":
+            lc_messages.append(HumanMessage(content=msg["content"]))
+        elif msg["role"] == "assistant":
+            lc_messages.append(AIMessage(content=msg["content"]))
+        elif msg["role"] == "function":
+            lc_messages.append(FunctionMessage(
+                content=msg["content"],
+                name=msg["name"]
+            ))
     
-    # Get all available tools
-    tools = []
-    for server_tools in state.connected_servers.values():
-        tools.extend(server_tools.tools)
-    
-    # Create agent
-    agent = agent_manager.create_agent(tools, state.agent_state)
+    # Add current message
+    lc_messages.append(HumanMessage(content=message))
     
     # Add user message to state
     state.messages.append({"role": "user", "content": message})
     
     # Stream response
     current_text = ""
-    async for chunk in streaming_manager.stream_chat([{"role": "user", "content": message}]):
-        if chunk.type == 'content':
-            current_text += chunk.content
+    async for event in agent_executor.astream(lc_messages, state.current_tools):
+        if event.type == "token":
+            current_text += event.data
             response_placeholder.markdown(current_text + "▌")
-        elif chunk.type == 'tool_call':
+        
+        elif event.type == "tool_start":
             with tool_placeholder:
                 display_tool_call(
-                    chunk.tool_info['name'],
-                    chunk.tool_info['args']
+                    event.data["name"],
+                    event.data["arguments"]
                 )
-        elif chunk.type == 'tool_result':
-            current_text += f"\n\nTool Result:\n```\n{chunk.content}\n```\n"
-            response_placeholder.markdown(current_text + "▌")
-    
-    # Finalize response
-    response_placeholder.markdown(current_text)
-    
-    # Add assistant response to state
-    state.messages.append({"role": "assistant", "content": current_text})
-    
-    # Update agent state
-    state.agent_state = await agent_manager.run_agent(
-        agent,
-        message,
-        state.agent_state
-    )
+                
+            # Execute tool through MCP
+            server_name = MCPUtils.find_server_for_tool(
+                event.data["name"],
+                {name: conn.tools for name, conn in state.connected_servers.items()}
+            )
+            
+            if server_name:
+                try:
+                    result = await session_manager.call_tool(
+                        server_name,
+                        event.data["name"],
+                        **event.data["arguments"]
+                    )
+                    current_text += f"\n\nTool Result:\n```\n{result.content}\n```\n"
+                    response_placeholder.markdown(current_text + "▌")
+                    
+                except Exception as e:
+                    error_msg = f"\n\nError executing tool: {str(e)}\n"
+                    current_text += error_msg
+                    response_placeholder.markdown(current_text + "▌")
+        
+        elif event.type == "complete":
+            # Finalize response
+            response_placeholder.markdown(current_text)
+            # Add assistant response to state
+            state.messages.append({"role": "assistant", "content": current_text})
 
 def main():
     """Main chat interface."""
@@ -113,11 +140,9 @@ def main():
     
     # Initialize managers
     session_manager = SessionManager()
-    streaming_manager = StreamingManager(
-        session_manager=session_manager,
+    agent_executor = StreamingAgentExecutor(
         api_key=st.secrets["ANTHROPIC_API_KEY"]
     )
-    agent_manager = AgentManager(api_key=st.secrets["ANTHROPIC_API_KEY"])
     
     # Server connection section
     with st.sidebar:
@@ -137,6 +162,15 @@ def main():
             for name in state.connected_servers:
                 st.text(f"• {name}")
                 
+        # Show available tools
+        if state.current_tools:
+            st.header("Available Tools")
+            for tool in state.current_tools:
+                with st.expander(tool["name"]):
+                    st.write(f"**Description:** {tool['description']}")
+                    st.write("**Parameters:**")
+                    st.json(tool["parameters"])
+                
     # Display chat history
     for message in state.messages:
         display_message(message)
@@ -145,8 +179,8 @@ def main():
     if user_input := st.chat_input("Type your message here..."):
         asyncio.run(process_message(
             state,
-            streaming_manager,
-            agent_manager,
+            session_manager,
+            agent_executor,
             user_input
         ))
 
