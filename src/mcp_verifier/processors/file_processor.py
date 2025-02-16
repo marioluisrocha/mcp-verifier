@@ -3,6 +3,7 @@
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Set
+import aiofiles
 
 from ..core.models import ServerFile
 
@@ -43,9 +44,9 @@ class FileProcessor:
                 continue
                 
             try:
-                # Read file content using JetBrains API
+                # Read file content
                 rel_path = str(file_path.relative_to(server_path))
-                content = await self._read_file(str(file_path))
+                content = await self._read_file(str(file_path))  # Changed to use absolute path
                 
                 files[rel_path] = ServerFile(
                     path=rel_path,
@@ -64,10 +65,10 @@ class FileProcessor:
     
     async def _read_file(self, path: str) -> str:
         """
-        Read file content using JetBrains API.
+        Read file content with proper encoding handling.
         
         Args:
-            path: Path to the file to read
+            path: Absolute path to the file to read
             
         Returns:
             File content as string
@@ -76,24 +77,25 @@ class FileProcessor:
             FileNotFoundError: If file doesn't exist
             IOError: If file cannot be read
         """
+        file_path = Path(path)
+        
+        if not file_path.exists():
+            raise FileNotFoundError(f"File not found: {path}")
+            
+        if not file_path.is_file():
+            raise FileNotFoundError(f"Path is not a file: {path}")
+            
         try:
-            content = await self._try_read_file(path)
-            if content is None:
-                raise FileNotFoundError(f"File not found: {path}")
-            return content
+            # Try UTF-8 first
+            async with aiofiles.open(file_path, mode='r', encoding='utf-8') as f:
+                return await f.read()
+        except UnicodeDecodeError:
+            # Fall back to latin-1 if UTF-8 fails
+            async with aiofiles.open(file_path, mode='r', encoding='latin-1') as f:
+                return await f.read()
         except Exception as e:
             raise IOError(f"Failed to read file {path}: {str(e)}")
-            
-    async def _try_read_file(self, path: str) -> Optional[str]:
-        """Attempt to read file content with proper encoding."""
-        try:
-            result = await get_file_text_by_path(path)
-            if isinstance(result, str) and not result.startswith("error"):
-                return result
-            return None
-        except Exception:
-            return None
-            
+    
     def get_main_file(self, files: Dict[str, ServerFile]) -> Optional[str]:
         """
         Find the likely main file of the MCP server.

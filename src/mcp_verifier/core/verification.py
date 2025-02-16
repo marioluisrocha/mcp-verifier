@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 from langgraph.graph import StateGraph
+from langgraph.graph.state import CompiledStateGraph
 
 from .models import VerificationState, VerificationResult
 from ..processors.file_processor import FileProcessor
@@ -24,7 +25,7 @@ class VerificationGraph:
         self.description_analyzer = DescriptionAnalyzer()
         self.graph = self._build_graph()
         
-    def _build_graph(self) -> StateGraph:
+    def _build_graph(self) -> CompiledStateGraph:
         """Build the verification workflow graph."""
         graph = StateGraph(VerificationState)
         
