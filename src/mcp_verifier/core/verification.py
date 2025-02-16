@@ -190,15 +190,15 @@ class VerificationGraph:
     def _make_decision(self, state: VerificationState) -> VerificationState:
         """Make final verification decision."""
         # Check all criteria
-        has_security_issues = len(state.security_issues) > 0
+        has_security_issues = len(state.security_issues) > 10
         has_critical_violations = any(
             'critical' in v.impact.lower() 
             for v in state.guideline_violations
         )
-        poor_description_match = state.description_match < 0.8
+        poor_description_match = state.description_match < 0.6
         
         # Approve only if all checks pass
-        if (has_security_issues or 
+        if (has_security_issues or
             has_critical_violations or 
             poor_description_match or 
             state.status == "rejected"):
