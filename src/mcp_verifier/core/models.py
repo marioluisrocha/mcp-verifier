@@ -21,7 +21,6 @@ class SecurityIssue(BaseModel):
     )
     description: str = Field(description="Detailed description of the issue")
     location: str = Field(description="File and line number where issue was found")
-    recommendation: str = Field(description="Recommended fix for the issue")
 
 
 class GuidelineViolation(BaseModel):

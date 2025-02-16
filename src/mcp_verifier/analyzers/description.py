@@ -28,7 +28,10 @@ Provide:
 1. Implementation summary
 2. Feature comparison
 3. Discrepancies found
-4. Match percentage (0-100)
+4. Match percentage (0-100%)
+
+YOU MUST FOLLOW THIS FORMAT:
+SCORE: N%
 """
 
 class DescriptionAnalyzer:
@@ -85,7 +88,7 @@ class DescriptionAnalyzer:
         try:
             # Look for percentage in response
             for line in response.split('\n'):
-                if 'percentage' in line.lower() and '%' in line:
+                if 'score' in line.lower() and '%' in line:
                     # Extract number before %
                     score = line.split('%')[0].split()[-1]
                     if '-' in score:

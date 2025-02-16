@@ -8,9 +8,13 @@ import os
 import streamlit as st
 from dotenv import load_dotenv
 
-from core.verification import VerificationGraph
+from core.server_management import (
+    MCPServerConfig,
+    ServerStorageManager,
+    ServerProcessManager,
+    VerificationHandler
+)
 from core.models import VerificationResult
-from core.upload_handler import UploadConfig
 from src.mcp_client.utils.graph import StreamingAgentExecutor
 from src.mcp_client.ui.chat import render_chat_interface
 
@@ -36,7 +40,6 @@ def display_verification_result(result: VerificationResult):
         for issue in result.security_issues:
             with st.expander(f"{issue.severity.upper()}: {issue.location}"):
                 st.write(f"**Description:** {issue.description}")
-                st.write(f"**Recommendation:** {issue.recommendation}")
 
     if result.guideline_violations:
         st.subheader("Guideline Violations")
@@ -50,15 +53,46 @@ def display_verification_result(result: VerificationResult):
     st.write(f"Match Score: {result.description_match:.1%}")
 
 
-async def verify_server(zip_path: Path, description: str):
-    """Run verification process."""
-    try:
-        verifier = VerificationGraph(UploadConfig())
-        result = await verifier.verify(str(zip_path), description)
-        return result
-    except Exception as e:
-        st.error(f"Verification failed: {str(e)}")
-        return None
+def initialize_state():
+    """Initialize application state."""
+    if 'server_managers' not in st.session_state:
+        st.session_state.config_manager = MCPServerConfig(
+            Path.home() / ".mcp" / "config.json"
+        )
+        st.session_state.storage_manager = ServerStorageManager(
+            Path.home() / ".mcp" / "servers"
+        )
+        st.session_state.process_manager = ServerProcessManager(
+            st.session_state.config_manager
+        )
+        st.session_state.verification_handler = VerificationHandler(
+            st.session_state.config_manager,
+            st.session_state.storage_manager,
+            st.session_state.process_manager
+        )
+
+
+def render_server_management():
+    """Render server management interface."""
+    st.subheader("Managed Servers")
+
+    # List current servers
+    servers = st.session_state.config_manager.list_servers()
+    for server in servers:
+        col1, col2, col3 = st.columns([3, 1, 1])
+
+        with col1:
+            st.write(f"**{server['name']}**")
+            st.write(f"Type: {server['type']}")
+
+        with col2:
+            status = "🟢 Running" if st.session_state.process_manager.is_running(server['name']) else "🔴 Stopped"
+            st.write(status)
+
+        with col3:
+            if st.button("Restart", key=f"restart_{server['name']}"):
+                with st.spinner(f"Restarting {server['name']}..."):
+                    asyncio.run(st.session_state.process_manager.restart_server(server['name']))
 
 
 def main():
@@ -71,18 +105,28 @@ def main():
     # Load environment variables
     load_dotenv()
 
-    # Initialize agent executor
+    # Initialize state
+    initialize_state()
+
+    # Initialize agent executor with running servers
     agent_executor = StreamingAgentExecutor(
         api_key=os.getenv("ANTHROPIC_API_KEY")
     )
 
     # Create tabs for navigation
-    tab1, tab2 = st.tabs(["Server Verification", "Chat"])
+    tab1, tab2, tab3 = st.tabs(["Server Verification", "Server Management", "Chat"])
 
     with tab1:
         st.title("MCP Server Verification")
 
         with st.container():
+            # Server name input
+            server_name = st.text_input(
+                "Server Name",
+                placeholder="Enter a unique name for your server",
+                help="This name will be used to identify your server"
+            )
+
             description = st.text_area(
                 "Server Description",
                 placeholder="Describe your MCP server's functionality...",
@@ -107,17 +151,20 @@ def main():
                 4. Maximum size: 50MB
                 """)
 
-            if uploaded_file and description and st.button("Verify Server"):
+            if all([uploaded_file, description, server_name]) and st.button("Verify Server"):
                 with st.spinner("Verifying server..."):
                     with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as temp_zip:
                         temp_zip.write(uploaded_file.getbuffer())
                         zip_path = Path(temp_zip.name)
 
                         try:
-                            progress_text = "Running verification..."
-                            progress_bar = st.progress(0)
-
-                            result = asyncio.run(verify_server(zip_path, description))
+                            result = asyncio.run(
+                                st.session_state.verification_handler.handle_verification(
+                                    zip_path,
+                                    description,
+                                    server_name
+                                )
+                            )
 
                             if result:
                                 display_verification_result(result)
@@ -128,6 +175,9 @@ def main():
                                 pass
 
     with tab2:
+        render_server_management()
+
+    with tab3:
         render_chat_interface(agent_executor)
 
 
