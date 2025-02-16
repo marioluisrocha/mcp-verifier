@@ -6,7 +6,7 @@ import signal
 from typing import Optional, Dict, Any
 import psutil
 
-from ..core.interfaces import ProcessManager
+from src.mcp_verifier.core.interfaces import ProcessManager
 
 logger = logging.getLogger(__name__)
 

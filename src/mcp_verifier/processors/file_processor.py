@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set
 import aiofiles
 
-from ..core.models import ServerFile
+from src.mcp_verifier.core.models import ServerFile
 
 logger = logging.getLogger(__name__)
 

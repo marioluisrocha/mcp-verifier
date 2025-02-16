@@ -6,12 +6,12 @@ from typing import Optional
 from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from .models import VerificationState, VerificationResult
-from ..processors.file_processor import FileProcessor
-from ..analyzers.security import SecurityAnalyzer
-from ..analyzers.guidelines import GuidelinesAnalyzer
-from ..analyzers.description import DescriptionAnalyzer
-from ..utils.process import get_process_manager
+from src.mcp_verifier.core.models import VerificationState, VerificationResult
+from src.mcp_verifier.processors.file_processor import FileProcessor
+from src.mcp_verifier.analyzers.security import SecurityAnalyzer
+from src.mcp_verifier.analyzers.guidelines import GuidelinesAnalyzer
+from src.mcp_verifier.analyzers.description import DescriptionAnalyzer
+from src.mcp_verifier.utils.process import get_process_manager
 
 logger = logging.getLogger(__name__)
 
