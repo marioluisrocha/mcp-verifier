@@ -3,6 +3,8 @@ FROM python:3.12-slim
 
 # Set working directory in the container
 WORKDIR /app
+ENV PYTHONPATH=/app:$PYTHONPATH
+
 
 # Copy requirements file
 # COPY requirements.txt .
@@ -11,9 +13,10 @@ WORKDIR /app
 # RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install poetry
 RUN poetry config virtualenvs.create false
+COPY .  /app
 RUN poetry install
 # Copy the rest of the application code
-COPY . .
+
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
