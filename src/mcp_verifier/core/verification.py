@@ -3,6 +3,8 @@
 import logging
 from pathlib import Path
 from typing import Optional
+
+from langgraph.constants import END, START
 from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
@@ -38,13 +40,16 @@ class VerificationGraph:
         graph.add_node("make_decision", self._make_decision)
         
         # Define the main workflow
+        graph.add_edge(START, "extract_files")
         graph.add_edge("extract_files", "analyze_security")
         graph.add_edge("analyze_security", "analyze_guidelines")
         graph.add_edge("analyze_guidelines", "analyze_description")
         graph.add_edge("analyze_description", "verify_startup")
         graph.add_edge("verify_startup", "make_decision")
+        graph.add_edge("make_decision", END)
         
         # Add conditional edges for remediation
+        # TODO WHY THE LOOP BACK???
         graph.add_conditional_edges(
             "analyze_security",
             self._needs_security_fixes,
@@ -78,6 +83,7 @@ class VerificationGraph:
             initial_state = VerificationState(
                 files={},
                 user_description=description,
+                server_path=server_path,
                 current_stage="init",
                 security_issues=[],
                 guideline_violations=[],

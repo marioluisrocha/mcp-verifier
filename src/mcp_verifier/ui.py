@@ -74,7 +74,7 @@ def main():
     uploaded_files = st.file_uploader(
         "Upload Server Files",
         accept_multiple_files=True,
-        type=['py', 'js', 'ts', 'tsx', 'json', 'yaml', 'yml'],
+        type=['py', 'js', 'ts', 'tsx', 'json', 'yaml', 'yml', 'toml', 'md'],
         help="Upload all files that comprise your MCP server"
     )
     

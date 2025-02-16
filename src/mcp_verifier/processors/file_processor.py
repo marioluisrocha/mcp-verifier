@@ -13,7 +13,7 @@ class FileProcessor:
     """Handles extraction and analysis of MCP server files."""
     
     # Supported file types
-    VALID_EXTENSIONS: Set[str] = {'.py', '.js', '.ts', '.tsx', '.json', '.yaml', '.yml'}
+    VALID_EXTENSIONS: Set[str] = {'.py', '.js', '.ts', '.tsx', '.json', '.yaml', '.yml', '.toml', '.md'}
     
     async def extract_files(self, path: str) -> Dict[str, ServerFile]:
         """
