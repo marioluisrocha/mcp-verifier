@@ -16,6 +16,7 @@ rich = "^13.0"             # Rich terminal output
 psutil = "^5.9"            # Process management
 aiofiles = "^24.1.0"
 streamlit = "^1.32.0"      # Web UI
+mcp = "^1.2.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.4"
