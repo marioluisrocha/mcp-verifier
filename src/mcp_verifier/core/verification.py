@@ -9,6 +9,7 @@ from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
 from src.mcp_verifier.core.models import VerificationState, VerificationResult
+from src.mcp_verifier.core.upload_handler import UploadHandler, UploadConfig
 from src.mcp_verifier.processors.file_processor import FileProcessor
 from src.mcp_verifier.analyzers.security import SecurityAnalyzer
 from src.mcp_verifier.analyzers.guidelines import GuidelinesAnalyzer
@@ -20,11 +21,12 @@ logger = logging.getLogger(__name__)
 class VerificationGraph:
     """Coordinates the MCP server verification process."""
     
-    def __init__(self):
+    def __init__(self, upload_config: Optional[UploadConfig] = None):
         self.file_processor = FileProcessor()
         self.security_analyzer = SecurityAnalyzer()
         self.guidelines_analyzer = GuidelinesAnalyzer()
         self.description_analyzer = DescriptionAnalyzer()
+        self.upload_handler = UploadHandler(upload_config)
         self.graph = self._build_graph()
         
     def _build_graph(self) -> CompiledStateGraph:
@@ -32,6 +34,7 @@ class VerificationGraph:
         graph = StateGraph(VerificationState)
         
         # Add nodes for each verification stage
+        graph.add_node("process_upload", self._process_upload)
         graph.add_node("extract_files", self._extract_files)
         graph.add_node("analyze_security", self._analyze_security)
         graph.add_node("analyze_guidelines", self._analyze_guidelines)
@@ -40,7 +43,8 @@ class VerificationGraph:
         graph.add_node("make_decision", self._make_decision)
         
         # Define the main workflow
-        graph.add_edge(START, "extract_files")
+        graph.add_edge(START, "process_upload")
+        graph.add_edge("process_upload", "extract_files")
         graph.add_edge("extract_files", "analyze_security")
         graph.add_edge("analyze_security", "analyze_guidelines")
         graph.add_edge("analyze_guidelines", "analyze_description")
@@ -49,7 +53,6 @@ class VerificationGraph:
         graph.add_edge("make_decision", END)
         
         # Add conditional edges for remediation
-        # TODO WHY THE LOOP BACK???
         graph.add_conditional_edges(
             "analyze_security",
             self._needs_security_fixes,
@@ -62,28 +65,28 @@ class VerificationGraph:
         return graph.compile()
         
     async def verify(self, 
-                    server_path: str, 
+                    uploaded_zip: str,
                     description: str,
                     config: Optional[dict] = None) -> VerificationResult:
         """
         Run the complete verification process on an MCP server.
         
         Args:
-            server_path: Path to the server directory
+            uploaded_zip: Path to the uploaded ZIP file
             description: User-provided server description
             config: Optional configuration overrides
             
         Returns:
             VerificationResult with analysis results
         """
-        logger.info(f"Starting verification for server at {server_path}")
+        logger.info(f"Starting verification for server from {uploaded_zip}")
         
         try:
             # Initialize state
             initial_state = VerificationState(
                 files={},
                 user_description=description,
-                server_path=server_path,
+                uploaded_zip=uploaded_zip,
                 current_stage="init",
                 security_issues=[],
                 guideline_violations=[],
@@ -99,7 +102,8 @@ class VerificationGraph:
                 approved=final_state.status == "approved",
                 security_issues=final_state.security_issues,
                 guideline_violations=final_state.guideline_violations,
-                description_match=final_state.description_match
+                description_match=final_state.description_match,
+                extract_dir=final_state.extract_dir  # Include for cleanup
             )
             
             logger.info(f"Verification completed. Approved: {result.approved}")
@@ -108,7 +112,16 @@ class VerificationGraph:
         except Exception as e:
             logger.error(f"Verification failed: {str(e)}")
             raise
-            
+        finally:
+            # Cleanup extracted files if they exist
+            if initial_state.extract_dir:
+                self.upload_handler.cleanup(initial_state.extract_dir)
+                
+    async def _process_upload(self, state: VerificationState) -> VerificationState:
+        """Process uploaded ZIP file."""
+        state.current_stage = "process_upload"
+        return await self.upload_handler.process_upload(state.uploaded_zip, state)
+        
     async def _extract_files(self, state: VerificationState) -> VerificationState:
         """Extract and process server files."""
         state.current_stage = "extract_files"
@@ -141,8 +154,11 @@ class VerificationGraph:
             if not main_file:
                 raise ValueError("Could not determine main server file")
                 
+            # Create full path to main file
+            full_path = Path(state.server_path) / main_file
+                
             # Try to start server
-            startup_success = await process_manager.start_server(main_file)
+            startup_success = await process_manager.start_server(str(full_path))
             if not startup_success:
                 state.status = "rejected"
                 return state
@@ -188,7 +204,7 @@ class VerificationGraph:
         
     def _needs_security_fixes(self, state: VerificationState) -> bool:
         """Check if security issues need to be fixed."""
-        return len(state.security_issues) > 9 and any(
-            'high' in v.severity.lower() 
-            for v in state.security_issues
+        return len(state.security_issues) > 0 and any(
+            'high' in issue.severity.lower() 
+            for issue in state.security_issues
         )

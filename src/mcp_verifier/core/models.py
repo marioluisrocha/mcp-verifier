@@ -40,7 +40,7 @@ class VerificationState(BaseModel):
         description="Map of file paths to their contents"
     )
     user_description: str = Field(
-        default_factory=str,
+        default=str,
         description="User-provided server description"
     )
     server_path: Optional[str] = Field(
@@ -70,6 +70,14 @@ class VerificationState(BaseModel):
         description="Overall verification status",
         pattern="^(pending|approved|rejected)$"
     )
+    uploaded_zip: Optional[str] = Field(
+        default=None,
+        description="Path to the uploaded ZIP file"
+    )
+    extract_dir: Optional[str] = Field(
+        default=None,
+        description="Path to the extracted server files"
+    )
 
 
 class VerificationResult(BaseModel):
@@ -88,6 +96,10 @@ class VerificationResult(BaseModel):
         description="Similarity score between implementation and description",
         ge=0.0,
         le=1.0
+    )
+    extract_dir: Optional[str] = Field(
+        default=None,
+        description="Path to extracted server files for cleanup"
     )
     
     @property

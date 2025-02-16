@@ -8,19 +8,7 @@ from typing import Optional
 
 from core.verification import VerificationGraph
 from core.models import VerificationResult
-
-def save_uploaded_files(uploaded_files, temp_dir: Path) -> None:
-    """Save uploaded files preserving directory structure."""
-    for uploaded_file in uploaded_files:
-        # Get relative path from file name
-        file_path = temp_dir / uploaded_file.name
-        
-        # Create parent directories if needed
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Save file
-        with file_path.open("wb") as f:
-            f.write(uploaded_file.getbuffer())
+from core.upload_handler import UploadConfig
 
 def display_verification_result(result: VerificationResult):
     """Display verification results in a formatted way."""
@@ -50,11 +38,11 @@ def display_verification_result(result: VerificationResult):
     st.progress(result.description_match)
     st.write(f"Match Score: {result.description_match:.1%}")
 
-async def verify_server(temp_dir: Path, description: str) -> Optional[VerificationResult]:
+async def verify_server(zip_path: Path, description: str) -> Optional[VerificationResult]:
     """Run verification process."""
     try:
-        verifier = VerificationGraph()
-        result = await verifier.verify(str(temp_dir), description)
+        verifier = VerificationGraph(UploadConfig())
+        result = await verifier.verify(str(zip_path), description)
         return result
     except Exception as e:
         st.error(f"Verification failed: {str(e)}")
@@ -63,41 +51,56 @@ async def verify_server(temp_dir: Path, description: str) -> Optional[Verificati
 def main():
     st.title("MCP Server Verification")
     
-    # Description input
+    # Server description
     description = st.text_area(
         "Server Description",
         placeholder="Describe your MCP server's functionality...",
         help="Provide a detailed description of what your server does"
     )
     
-    # File uploader
-    uploaded_files = st.file_uploader(
-        "Upload Server Files",
-        accept_multiple_files=True,
-        type=['py', 'js', 'ts', 'tsx', 'json', 'yaml', 'yml', 'toml', 'md'],
-        help="Upload all files that comprise your MCP server"
+    # ZIP file uploader
+    uploaded_file = st.file_uploader(
+        "Upload Server ZIP",
+        type=['zip'],
+        help="Upload your MCP server as a ZIP archive. The ZIP should contain all server files with preserved directory structure."
     )
     
-    if uploaded_files and description and st.button("Verify Server"):
+    # Guidelines for ZIP creation
+    with st.expander("ZIP File Guidelines"):
+        st.markdown("""
+        ### How to prepare your server ZIP:
+        1. Ensure all server files are in their correct directory structure
+        2. Include all necessary files (.py, .js, .ts, .json, etc.)
+        3. Do not include:
+           - Virtual environments (venv, node_modules)
+           - Compiled files (__pycache__, .pyc)
+           - System or hidden files (.DS_Store, Thumbs.db)
+        4. Maximum size: 50MB
+        """)
+    
+    if uploaded_file and description and st.button("Verify Server"):
         with st.spinner("Verifying server..."):
-            # Create temporary directory
-            with tempfile.TemporaryDirectory() as temp_dir:
-                temp_path = Path(temp_dir)
+            # Save uploaded ZIP
+            with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as temp_zip:
+                temp_zip.write(uploaded_file.getbuffer())
+                zip_path = Path(temp_zip.name)
                 
-                # Save uploaded files
-                save_uploaded_files(uploaded_files, temp_path)
-                
-                # Progress indicator
-                progress_text = "Running verification..."
-                progress_bar = st.progress(0)
-                
-                # Run verification
-                result = asyncio.run(verify_server(temp_path, description))
-                
-                if result:
-                    display_verification_result(result)
+                try:
+                    # Progress indicator
+                    progress_text = "Running verification..."
+                    progress_bar = st.progress(0)
                     
-                # Cleanup happens automatically when context exits
+                    # Run verification
+                    result = asyncio.run(verify_server(zip_path, description))
+                    
+                    if result:
+                        display_verification_result(result)
+                finally:
+                    # Cleanup temporary zip file
+                    try:
+                        zip_path.unlink()
+                    except:
+                        pass
 
 if __name__ == "__main__":
     st.set_page_config(

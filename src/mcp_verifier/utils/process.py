@@ -29,14 +29,21 @@ class PythonProcessManager(ProcessManager):
         """
         try:
             # Create subprocess
-            self.process = await asyncio.create_subprocess_exec(
-                'python',
-                main_file,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                # Don't pass through stdin to avoid hanging
-                stdin=asyncio.subprocess.DEVNULL
+            import subprocess
+            self.process = subprocess.Popen(
+                ['python', main_file],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                stdin=subprocess.DEVNULL
             )
+            # self.process = await asyncio.create_subprocess_exec(
+            #     'python',
+            #     main_file,
+            #     stdout=asyncio.subprocess.PIPE,
+            #     stderr=asyncio.subprocess.PIPE,
+            #     # Don't pass through stdin to avoid hanging
+            #     stdin=asyncio.subprocess.DEVNULL
+            # )
             
             # Wait for startup with timeout
             try:

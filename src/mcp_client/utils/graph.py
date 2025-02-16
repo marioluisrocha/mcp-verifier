@@ -2,6 +2,7 @@
 
 from typing import List, Dict, Any, TypedDict, AsyncIterator
 
+from dotenv import load_dotenv
 from langgraph.graph.state import CompiledStateGraph
 from typing_extensions import TypeVar
 from dataclasses import dataclass
