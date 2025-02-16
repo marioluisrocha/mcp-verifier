@@ -3,7 +3,7 @@ FROM python:3.12-slim
 
 # Set working directory in the container
 WORKDIR /app
-ENV PYTHONPATH=/app:$PYTHONPATH
+ENV PYTHONPATH=/app
 
 
 # Copy requirements file
