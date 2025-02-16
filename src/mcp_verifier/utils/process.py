@@ -85,7 +85,7 @@ class PythonProcessManager(ProcessManager):
         if self.process.returncode is not None:
             return False
             
-        # Could add additional health checks here, like:
+        # todo Could add additional health checks here, like:
         # - Memory usage
         # - CPU usage
         # - Network connectivity

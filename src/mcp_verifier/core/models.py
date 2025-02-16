@@ -39,6 +39,10 @@ class VerificationState(BaseModel):
         default_factory=dict,
         description="Map of file paths to their contents"
     )
+    user_description: str = Field(
+        default_factory=str,
+        description="User-provided server description"
+    )
     security_issues: List[SecurityIssue] = Field(
         default_factory=list,
         description="List of found security issues"

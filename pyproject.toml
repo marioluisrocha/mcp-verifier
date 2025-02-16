@@ -5,10 +5,10 @@ description = "MCP Server Verification Tool"
 authors = ["Filipp Trigub <filipp.trigub@infolab.ai>"]
 
 [tool.poetry.dependencies]
-python = "^3.10"
-langchain = "^0.1.0"        # LangChain framework
-langgraph = "^0.0.10"       # State machine graphs
-anthropic = "^0.7.0"        # Claude API client
+python = "^3.12"
+langchain-community ="^0.3.12"
+langchain-anthropic = "^0.3.0"
+langgraph = "*"       # State machine graphs
 pyyaml = "^6.0"            # YAML parsing
 pydantic = "^2.0"          # Data validation
 typer = "^0.9.0"           # CLI interface
