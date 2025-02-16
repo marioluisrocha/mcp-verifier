@@ -17,6 +17,7 @@ from src.mcp_client.core.session import SessionManager
 from src.mcp_client.utils.graph import StreamingAgentExecutor
 from src.mcp_client.utils.mcp import ToolDefinition, MCPUtils
 
+
 def save_uploaded_files(uploaded_files, temp_dir: Path) -> None:
     """Save uploaded files preserving directory structure."""
     for uploaded_file in uploaded_files:
@@ -30,13 +31,14 @@ def save_uploaded_files(uploaded_files, temp_dir: Path) -> None:
         with file_path.open("wb") as f:
             f.write(uploaded_file.getbuffer())
 
+
 def display_verification_result(result: VerificationResult):
     """Display verification results in a formatted way."""
     if result.approved:
         st.success("✅ Verification Passed!")
     else:
         st.error("❌ Verification Failed!")
-        
+
     # Security Issues
     if result.security_issues:
         st.subheader("Security Issues")
@@ -44,7 +46,7 @@ def display_verification_result(result: VerificationResult):
             with st.expander(f"{issue.severity.upper()}: {issue.location}"):
                 st.write(f"**Description:** {issue.description}")
                 st.write(f"**Recommendation:** {issue.recommendation}")
-                
+
     # Guideline Violations
     if result.guideline_violations:
         st.subheader("Guideline Violations")
@@ -52,11 +54,12 @@ def display_verification_result(result: VerificationResult):
             with st.expander(f"{violation.rule}"):
                 st.write(f"**Description:** {violation.description}")
                 st.write(f"**Impact:** {violation.impact}")
-                
+
     # Description Match
     st.subheader("Description Match")
     st.progress(result.description_match)
     st.write(f"Match Score: {result.description_match:.1%}")
+
 
 async def verify_server(zip_path: Path, description: str) -> Optional[VerificationResult]:
     """Run verification process."""
@@ -68,6 +71,7 @@ async def verify_server(zip_path: Path, description: str) -> Optional[Verificati
         st.error(f"Verification failed: {str(e)}")
         return None
 
+
 @dataclass
 class ChatState:
     """Maintains chat interface state."""
@@ -75,26 +79,30 @@ class ChatState:
     connected_servers: dict = field(default_factory=dict)
     current_tools: list = field(default_factory=list)
 
+
 def initialize_chat_state() -> ChatState:
     """Initialize or get chat state."""
     if 'chat_state' not in st.session_state:
         st.session_state.chat_state = ChatState()
     return st.session_state.chat_state
 
+
 def display_message(msg: dict):
     """Display a chat message."""
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
+
 
 def display_tool_call(name: str, args: dict):
     """Display a tool call."""
     with st.expander(f"🔧 Tool Call: {name}"):
         st.json(args)
 
+
 async def handle_server_connection(state: ChatState,
-                                 session_manager: SessionManager,
-                                 server_name: str,
-                                 script_path: str):
+                                   session_manager: SessionManager,
+                                   server_name: str,
+                                   script_path: str):
     """Handle connecting to a new server."""
     try:
         connection = await session_manager.connect_server(server_name, script_path)
@@ -119,10 +127,11 @@ async def handle_server_connection(state: ChatState,
     except Exception as e:
         st.error(f"Failed to connect to server {server_name}: {str(e)}")
 
+
 async def process_message(state: ChatState,
-                         session_manager: SessionManager,
-                         agent_executor: StreamingAgentExecutor,
-                         message: str):
+                          session_manager: SessionManager,
+                          agent_executor: StreamingAgentExecutor,
+                          message: str):
     """Process a user message and stream the response."""
 
     # Create message placeholders
@@ -189,6 +198,7 @@ async def process_message(state: ChatState,
             # Add assistant response to state
             state.messages.append({"role": "assistant", "content": current_text})
 
+
 def render_chat_interface():
     """Render the chat interface in the main area."""
     st.title("MCP Chat")
@@ -214,6 +224,7 @@ def render_chat_interface():
             agent_executor,
             user_input
         ))
+
 
 def main():
     st.set_page_config(
@@ -281,6 +292,7 @@ def main():
                                 pass
     with tab2:
         render_chat_interface()
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
