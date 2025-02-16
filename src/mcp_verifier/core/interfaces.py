@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import Protocol, TypeVar, Generic, Awaitable
 
-from .models import VerificationState
+from src.mcp_verifier.core.models import VerificationState
 
 T = TypeVar('T')
 

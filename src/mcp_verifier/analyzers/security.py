@@ -5,7 +5,7 @@ import logging
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_anthropic import ChatAnthropic
 
-from ..core.models import VerificationState, SecurityIssue
+from src.mcp_verifier.core.models import VerificationState, SecurityIssue
 
 logger = logging.getLogger(__name__)
 
