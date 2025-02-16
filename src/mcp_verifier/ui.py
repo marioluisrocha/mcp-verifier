@@ -1,4 +1,5 @@
 """Streamlit UI for MCP Server Verification."""
+import logging
 
 import streamlit as st
 import tempfile
@@ -11,6 +12,7 @@ import os
 
 from core.verification import VerificationGraph
 from core.models import VerificationResult
+from core.upload_handler import UploadConfig
 from src.mcp_client.core.session import SessionManager
 from src.mcp_client.utils.graph import StreamingAgentExecutor
 from src.mcp_client.utils.mcp import ToolDefinition, MCPUtils
@@ -20,10 +22,10 @@ def save_uploaded_files(uploaded_files, temp_dir: Path) -> None:
     for uploaded_file in uploaded_files:
         # Get relative path from file name
         file_path = temp_dir / uploaded_file.name
-        
+
         # Create parent directories if needed
         file_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # Save file
         with file_path.open("wb") as f:
             f.write(uploaded_file.getbuffer())
@@ -56,11 +58,11 @@ def display_verification_result(result: VerificationResult):
     st.progress(result.description_match)
     st.write(f"Match Score: {result.description_match:.1%}")
 
-async def verify_server(temp_dir: Path, description: str) -> Optional[VerificationResult]:
+async def verify_server(zip_path: Path, description: str) -> Optional[VerificationResult]:
     """Run verification process."""
     try:
-        verifier = VerificationGraph()
-        result = await verifier.verify(str(temp_dir), description)
+        verifier = VerificationGraph(UploadConfig())
+        result = await verifier.verify(str(zip_path), description)
         return result
     except Exception as e:
         st.error(f"Verification failed: {str(e)}")
@@ -97,7 +99,7 @@ async def handle_server_connection(state: ChatState,
     try:
         connection = await session_manager.connect_server(server_name, script_path)
         state.connected_servers[server_name] = connection
-        
+
         # Update available tools
         for tool in connection.tools:
             tool_def = ToolDefinition(
@@ -107,13 +109,13 @@ async def handle_server_connection(state: ChatState,
                 server_name=server_name
             )
             state.current_tools.append(MCPUtils.convert_tool_to_openai_function(tool_def))
-            
+
         st.success(f"Connected to server: {server_name}")
-        
+
         # Show available tools
         with st.expander(f"Available tools from {server_name}"):
             st.json(connection.tools)
-            
+
     except Exception as e:
         st.error(f"Failed to connect to server {server_name}: {str(e)}")
 
@@ -122,11 +124,11 @@ async def process_message(state: ChatState,
                          agent_executor: StreamingAgentExecutor,
                          message: str):
     """Process a user message and stream the response."""
-    
+
     # Create message placeholders
     response_placeholder = st.empty()
     tool_placeholder = st.empty()
-    
+
     # Convert message to LangChain format
     lc_messages = []
     for msg in state.messages:
@@ -139,33 +141,33 @@ async def process_message(state: ChatState,
                 content=msg["content"],
                 name=msg["name"]
             ))
-    
+
     # Add current message
     lc_messages.append(HumanMessage(content=message))
-    
+
     # Add user message to state
     state.messages.append({"role": "user", "content": message})
-    
+
     # Stream response
     current_text = ""
     async for event in agent_executor.astream(lc_messages, state.current_tools):
         if event.type == "token":
             current_text += event.data
             response_placeholder.markdown(current_text + "▌")
-        
+
         elif event.type == "tool_start":
             with tool_placeholder:
                 display_tool_call(
                     event.data["name"],
                     event.data["arguments"]
                 )
-                
+
             # Execute tool through MCP
             server_name = MCPUtils.find_server_for_tool(
                 event.data["name"],
                 {name: conn.tools for name, conn in state.connected_servers.items()}
             )
-            
+
             if server_name:
                 try:
                     result = await session_manager.call_tool(
@@ -175,12 +177,12 @@ async def process_message(state: ChatState,
                     )
                     current_text += f"\n\nTool Result:\n```\n{result.content}\n```\n"
                     response_placeholder.markdown(current_text + "▌")
-                    
+
                 except Exception as e:
                     error_msg = f"\n\nError executing tool: {str(e)}\n"
                     current_text += error_msg
                     response_placeholder.markdown(current_text + "▌")
-        
+
         elif event.type == "complete":
             # Finalize response
             response_placeholder.markdown(current_text)
@@ -190,20 +192,20 @@ async def process_message(state: ChatState,
 def render_chat_interface():
     """Render the chat interface in the main area."""
     st.title("MCP Chat")
-    
+
     # Initialize state and managers
     state = initialize_chat_state()
     session_manager = SessionManager()
     agent_executor = StreamingAgentExecutor(
         api_key=os.getenv("ANTHROPIC_API_KEY")
     )
-    
+
     # Display chat history
     st.header("Chat History")
     for message in state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
-    
+
     # Chat input
     if user_input := st.chat_input("Type your message here..."):
         asyncio.run(process_message(
@@ -219,45 +221,67 @@ def main():
         page_icon="🔍",
         layout="wide"
     )
-    
+
     # Create tabs for navigation
     tab1, tab2 = st.tabs(["Server Verification", "Chat"])
-    
+
     with tab1:
         st.title("MCP Server Verification")
-        # Main verification interface
+
         with st.container():
-            # Description input
+            # Server description
             description = st.text_area(
                 "Server Description",
                 placeholder="Describe your MCP server's functionality...",
                 help="Provide a detailed description of what your server does"
             )
-            
-            # File uploader
-            uploaded_files = st.file_uploader(
-                "Upload Server Files",
-                accept_multiple_files=True,
-                type=['py', 'js', 'ts', 'tsx', 'json', 'yaml', 'yml', 'toml', 'md'],
-                help="Upload all files that comprise your MCP server"
+
+            # ZIP file uploader
+            uploaded_file = st.file_uploader(
+                "Upload Server ZIP",
+                type=['zip'],
+                help="Upload your MCP server as a ZIP archive. The ZIP should contain all server files with preserved directory structure."
             )
-            
-            if uploaded_files and description and st.button("Verify Server"):
+
+            # Guidelines for ZIP creation
+            with st.expander("ZIP File Guidelines"):
+                st.markdown("""
+                ### How to prepare your server ZIP:
+                1. Ensure all server files are in their correct directory structure
+                2. Include all necessary files (.py, .js, .ts, .json, etc.)
+                3. Do not include:
+                   - Virtual environments (venv, node_modules)
+                   - Compiled files (__pycache__, .pyc)
+                   - System or hidden files (.DS_Store, Thumbs.db)
+                4. Maximum size: 50MB
+                """)
+
+            if uploaded_file and description and st.button("Verify Server"):
                 with st.spinner("Verifying server..."):
-                    with tempfile.TemporaryDirectory() as temp_dir:
-                        temp_path = Path(temp_dir)
-                        save_uploaded_files(uploaded_files, temp_path)
-                        
-                        progress_text = "Running verification..."
-                        progress_bar = st.progress(0)
-                        
-                        result = asyncio.run(verify_server(temp_path, description))
-                        
-                        if result:
-                            display_verification_result(result)
-    
+                    # Save uploaded ZIP
+                    with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as temp_zip:
+                        temp_zip.write(uploaded_file.getbuffer())
+                        zip_path = Path(temp_zip.name)
+
+                        try:
+                            # Progress indicator
+                            progress_text = "Running verification..."
+                            progress_bar = st.progress(0)
+
+                            # Run verification
+                            result = asyncio.run(verify_server(zip_path, description))
+
+                            if result:
+                                display_verification_result(result)
+                        finally:
+                            # Cleanup temporary zip file
+                            try:
+                                zip_path.unlink()
+                            except:
+                                pass
     with tab2:
         render_chat_interface()
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     main()

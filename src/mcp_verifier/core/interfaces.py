@@ -26,6 +26,20 @@ class ProcessManager(ABC):
     """Abstract base class for server process management."""
     
     @abstractmethod
+    async def install_dependencies(self, server_path: str, server_type: str) -> bool:
+        """
+        Install server dependencies.
+
+        Args:
+            server_path: Path to the server directory
+            server_type: Type of server ('python' or 'node')
+
+        Returns:
+            True if dependencies were installed successfully
+        """
+        pass
+
+    @abstractmethod
     async def start_server(self, main_file: str) -> bool:
         """
         Start the MCP server and verify it's running correctly.

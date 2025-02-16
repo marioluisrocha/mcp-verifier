@@ -53,6 +53,7 @@ class GuidelinesAnalyzer:
     """Analyzes MCP server for community guidelines compliance."""
     
     def __init__(self):
+        load_dotenv()
         self.llm = ChatAnthropic(model="claude-3-sonnet-20240229")
         
     async def analyze(self, state: VerificationState) -> VerificationState:

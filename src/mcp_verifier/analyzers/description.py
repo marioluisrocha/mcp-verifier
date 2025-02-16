@@ -87,7 +87,10 @@ class DescriptionAnalyzer:
             for line in response.split('\n'):
                 if 'percentage' in line.lower() and '%' in line:
                     # Extract number before %
-                    number = float(line.split('%')[0].split()[-1])
+                    score = line.split('%')[0].split()[-1]
+                    if '-' in score:
+                        score = score.split('-')[-1]
+                    number = float(score)
                     return number / 100.0
                     
             # Default to conservative match if no percentage found
