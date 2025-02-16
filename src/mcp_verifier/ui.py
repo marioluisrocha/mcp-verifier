@@ -227,63 +227,59 @@ def main():
     with tab1:
         st.title("MCP Server Verification")
 
-        # Server description
-        description = st.text_area(
-            "Server Description",
-            placeholder="Describe your MCP server's functionality...",
-            help="Provide a detailed description of what your server does"
-        )
+        with st.container():
+            # Server description
+            description = st.text_area(
+                "Server Description",
+                placeholder="Describe your MCP server's functionality...",
+                help="Provide a detailed description of what your server does"
+            )
 
-        # ZIP file uploader
-        uploaded_file = st.file_uploader(
-            "Upload Server ZIP",
-            type=['zip'],
-            help="Upload your MCP server as a ZIP archive. The ZIP should contain all server files with preserved directory structure."
-        )
+            # ZIP file uploader
+            uploaded_file = st.file_uploader(
+                "Upload Server ZIP",
+                type=['zip'],
+                help="Upload your MCP server as a ZIP archive. The ZIP should contain all server files with preserved directory structure."
+            )
 
-        # Guidelines for ZIP creation
-        with st.expander("ZIP File Guidelines"):
-            st.markdown("""
-            ### How to prepare your server ZIP:
-            1. Ensure all server files are in their correct directory structure
-            2. Include all necessary files (.py, .js, .ts, .json, etc.)
-            3. Do not include:
-               - Virtual environments (venv, node_modules)
-               - Compiled files (__pycache__, .pyc)
-               - System or hidden files (.DS_Store, Thumbs.db)
-            4. Maximum size: 50MB
-            """)
+            # Guidelines for ZIP creation
+            with st.expander("ZIP File Guidelines"):
+                st.markdown("""
+                ### How to prepare your server ZIP:
+                1. Ensure all server files are in their correct directory structure
+                2. Include all necessary files (.py, .js, .ts, .json, etc.)
+                3. Do not include:
+                   - Virtual environments (venv, node_modules)
+                   - Compiled files (__pycache__, .pyc)
+                   - System or hidden files (.DS_Store, Thumbs.db)
+                4. Maximum size: 50MB
+                """)
 
-        if uploaded_file and description and st.button("Verify Server"):
-            with st.spinner("Verifying server..."):
-                # Save uploaded ZIP
-                with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as temp_zip:
-                    temp_zip.write(uploaded_file.getbuffer())
-                    zip_path = Path(temp_zip.name)
+            if uploaded_file and description and st.button("Verify Server"):
+                with st.spinner("Verifying server..."):
+                    # Save uploaded ZIP
+                    with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as temp_zip:
+                        temp_zip.write(uploaded_file.getbuffer())
+                        zip_path = Path(temp_zip.name)
 
-                    try:
-                        # Progress indicator
-                        progress_text = "Running verification..."
-                        progress_bar = st.progress(0)
-
-                        # Run verification
-                        result = asyncio.run(verify_server(zip_path, description))
-
-                        if result:
-                            display_verification_result(result)
-                    finally:
-                        # Cleanup temporary zip file
                         try:
-                            zip_path.unlink()
-                        except:
-                            pass
+                            # Progress indicator
+                            progress_text = "Running verification..."
+                            progress_bar = st.progress(0)
+
+                            # Run verification
+                            result = asyncio.run(verify_server(zip_path, description))
+
+                            if result:
+                                display_verification_result(result)
+                        finally:
+                            # Cleanup temporary zip file
+                            try:
+                                zip_path.unlink()
+                            except:
+                                pass
     with tab2:
         render_chat_interface()
 
 if __name__ == "__main__":
-    st.set_page_config(
-        page_title="MCP Server Verification",
-        page_icon="🔍",
-        layout="wide"
-    )
     main()

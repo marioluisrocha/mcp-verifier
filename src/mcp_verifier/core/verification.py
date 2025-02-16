@@ -1,6 +1,7 @@
 """Main verification workflow for MCP servers."""
 
 import logging
+import shutil
 from pathlib import Path
 from typing import Optional
 
@@ -14,7 +15,7 @@ from src.mcp_verifier.processors.file_processor import FileProcessor
 from src.mcp_verifier.analyzers.security import SecurityAnalyzer
 from src.mcp_verifier.analyzers.guidelines import GuidelinesAnalyzer
 from src.mcp_verifier.analyzers.description import DescriptionAnalyzer
-from src.mcp_verifier.utils.process import get_process_manager
+from src.mcp_verifier.utils.process import get_process_manager, PackageBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -36,21 +37,23 @@ class VerificationGraph:
         # Add nodes for each verification stage
         graph.add_node("process_upload", self._process_upload)
         graph.add_node("extract_files", self._extract_files)
-        graph.add_node("analyze_security", self._analyze_security)
+        graph.add_node("analyze_security", self._analyze_security) #todo revert
         graph.add_node("analyze_guidelines", self._analyze_guidelines)
         graph.add_node("analyze_description", self._analyze_description)
         graph.add_node("verify_startup", self._verify_startup)
         graph.add_node("make_decision", self._make_decision)
+        graph.add_node("cleanup", self._cleanup)
         
         # Define the main workflow
         graph.add_edge(START, "process_upload")
         graph.add_edge("process_upload", "extract_files")
-        graph.add_edge("extract_files", "analyze_security")
+        graph.add_edge("extract_files", "verify_startup") #todo revert to "analyze_security"
         graph.add_edge("analyze_security", "analyze_guidelines")
         graph.add_edge("analyze_guidelines", "analyze_description")
         graph.add_edge("analyze_description", "verify_startup")
         graph.add_edge("verify_startup", "make_decision")
-        graph.add_edge("make_decision", END)
+        graph.add_edge("make_decision", "cleanup")
+        graph.add_edge("cleanup", END)
         
         # Add conditional edges for remediation
         graph.add_conditional_edges(
@@ -91,7 +94,8 @@ class VerificationGraph:
                 security_issues=[],
                 guideline_violations=[],
                 description_match=0.0,
-                status="pending"
+                status="pending",
+                build_artifacts=[]  # Initialize empty list for build artifacts
             )
             
             # Run verification graph
@@ -103,7 +107,7 @@ class VerificationGraph:
                 security_issues=final_state.security_issues,
                 guideline_violations=final_state.guideline_violations,
                 description_match=final_state.description_match,
-                extract_dir=final_state.extract_dir  # Include for cleanup
+                extract_dir=final_state.extract_dir
             )
             
             logger.info(f"Verification completed. Approved: {result.approved}")
@@ -112,11 +116,7 @@ class VerificationGraph:
         except Exception as e:
             logger.error(f"Verification failed: {str(e)}")
             raise
-        finally:
-            # Cleanup extracted files if they exist
-            if initial_state.extract_dir:
-                self.upload_handler.cleanup(initial_state.extract_dir)
-                
+            
     async def _process_upload(self, state: VerificationState) -> VerificationState:
         """Process uploaded ZIP file."""
         state.current_stage = "process_upload"
@@ -149,16 +149,21 @@ class VerificationGraph:
             server_type = self.file_processor.determine_server_type(state.files)
             process_manager = get_process_manager(server_type)
             
-            # Find main file
-            main_file = self.file_processor.get_main_file(state.files)
-            if not main_file:
-                raise ValueError("Could not determine main server file")
-                
-            # Create full path to main file
-            full_path = Path(state.server_path) / main_file
+            # Build package based on server type
+            if server_type == 'python':
+                package_path = await PackageBuilder.build_python_package(state.server_path)
+                if package_path:
+                    state.build_artifacts.append(package_path)
+            else:  # node
+                package_path, _ = await PackageBuilder.build_node_package(state.server_path)
+                if package_path:
+                    state.build_artifacts.append(package_path)
+                    
+            if not package_path:
+                raise ValueError("Failed to build server package")
                 
             # Try to start server
-            startup_success = await process_manager.start_server(str(full_path))
+            startup_success = await process_manager.start_server(package_path)
             if not startup_success:
                 state.status = "rejected"
                 return state
@@ -200,6 +205,25 @@ class VerificationGraph:
         else:
             state.status = "approved"
             
+        return state
+        
+    async def _cleanup(self, state: VerificationState) -> VerificationState:
+        """Clean up all temporary files and build artifacts."""
+        # Clean up extracted files
+        if state.extract_dir:
+            self.upload_handler.cleanup(state.extract_dir)
+            
+        # Clean up build artifacts
+        for artifact_path in state.build_artifacts:
+            try:
+                path = Path(artifact_path)
+                if path.is_file():
+                    path.unlink()
+                elif path.is_dir():
+                    shutil.rmtree(path)
+            except Exception as e:
+                logger.error(f"Failed to clean up artifact {artifact_path}: {str(e)}")
+                
         return state
         
     def _needs_security_fixes(self, state: VerificationState) -> bool:

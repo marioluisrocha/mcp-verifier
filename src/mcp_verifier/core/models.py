@@ -78,6 +78,10 @@ class VerificationState(BaseModel):
         default=None,
         description="Path to the extracted server files"
     )
+    build_artifacts: List[str] = Field(
+        default_factory=list,
+        description="Paths to built package artifacts for cleanup"
+    )
 
 
 class VerificationResult(BaseModel):
