@@ -135,7 +135,9 @@ class AgentManager:
             if isinstance(chunk, str):
                 yield StreamEvent(type="token", data=chunk)
             elif isinstance(chunk, dict):
-                if "function_call" in chunk:
+                if 'output' in chunk:
+                    yield StreamEvent(type="token", data=chunk['output'])
+                elif "function_call" in chunk:
                     yield StreamEvent(type="tool_start", data=chunk["function_call"])
                 elif "function_result" in chunk:
                     yield StreamEvent(type="tool_end", data=chunk["function_result"])
