@@ -15,17 +15,6 @@ from src.mcp_verifier.utils.dependency_installer import DependencyInstaller
 
 logger = logging.getLogger(__name__)
 
-MINIMAL_PYPROJECT_TOML = """
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
-
-[project]
-name = "mcp-server"
-version = "0.1.0"
-dependencies = []
-"""
-
 class PackageBuilder:
     """Handles building packages for different types of servers."""
     
@@ -50,12 +39,7 @@ class PackageBuilder:
                     logger.error(f"Failed to install build package: {install_result.stderr}")
                     return None
 
-                # Ensure pyproject.toml exists
-                pyproject_path = Path(server_path) / 'pyproject.toml'
-                if not pyproject_path.exists():
-                    pyproject_path.write_text(MINIMAL_PYPROJECT_TOML)
-
-                # Run build command
+                # Run build command in the package directory
                 process = await loop.run_in_executor(
                     pool,
                     functools.partial(
@@ -184,7 +168,7 @@ class BaseMCPProcessManager(ProcessManager):
         if self.process is None:
             return False
             
-        return self.process.returncode is None
+        return self.process.returncode == 0
         
     async def _wait_for_healthy(self) -> bool:
         """Wait for server to become healthy."""
@@ -201,7 +185,7 @@ class BaseMCPProcessManager(ProcessManager):
 class PythonProcessManager(BaseMCPProcessManager):
     """Process manager for Python MCP servers."""
     
-    async def start_server(self, package_path: str) -> bool:
+    async def start_server(self, package_path: str, package_name: str) -> bool:
         """
         Start a Python MCP server process using pipx.
         
@@ -234,7 +218,7 @@ class PythonProcessManager(BaseMCPProcessManager):
                     pool,
                     functools.partial(
                         subprocess.run,
-                        ['pipx', 'run', '--spec', package_path, 'mcp-server'],
+                        ['pipx', 'run', '--spec', package_path, package_name],
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
                         stdin=subprocess.DEVNULL

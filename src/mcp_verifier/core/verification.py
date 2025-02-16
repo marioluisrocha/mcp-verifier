@@ -1,6 +1,7 @@
 """Main verification workflow for MCP servers."""
 
 import logging
+import os
 import shutil
 from pathlib import Path
 from typing import Optional
@@ -37,7 +38,7 @@ class VerificationGraph:
         # Add nodes for each verification stage
         graph.add_node("process_upload", self._process_upload)
         graph.add_node("extract_files", self._extract_files)
-        graph.add_node("analyze_security", self._analyze_security) #todo revert
+        graph.add_node("analyze_security", self._analyze_security)
         graph.add_node("analyze_guidelines", self._analyze_guidelines)
         graph.add_node("analyze_description", self._analyze_description)
         graph.add_node("verify_startup", self._verify_startup)
@@ -47,7 +48,7 @@ class VerificationGraph:
         # Define the main workflow
         graph.add_edge(START, "process_upload")
         graph.add_edge("process_upload", "extract_files")
-        graph.add_edge("extract_files", "verify_startup") #todo revert to "analyze_security"
+        graph.add_edge("extract_files", "analyze_security")
         graph.add_edge("analyze_security", "analyze_guidelines")
         graph.add_edge("analyze_guidelines", "analyze_description")
         graph.add_edge("analyze_description", "verify_startup")
@@ -103,11 +104,11 @@ class VerificationGraph:
             
             # Create result
             result = VerificationResult(
-                approved=final_state.status == "approved",
-                security_issues=final_state.security_issues,
-                guideline_violations=final_state.guideline_violations,
-                description_match=final_state.description_match,
-                extract_dir=final_state.extract_dir
+                approved=final_state['status'] == "approved",
+                security_issues=final_state['security_issues'],
+                guideline_violations=final_state['guideline_violations'],
+                description_match=final_state['description_match'],
+                extract_dir=final_state['server_path']
             )
             
             logger.info(f"Verification completed. Approved: {result.approved}")
@@ -148,7 +149,11 @@ class VerificationGraph:
             # Determine server type and get appropriate manager
             server_type = self.file_processor.determine_server_type(state.files)
             process_manager = get_process_manager(server_type)
-            
+
+            # set server path to the extracted directory
+            package_name = os.path.split(list(state.files.keys())[0])[0]
+            state.server_path = os.path.join(state.server_path, package_name)
+
             # Build package based on server type
             if server_type == 'python':
                 package_path = await PackageBuilder.build_python_package(state.server_path)
@@ -163,7 +168,7 @@ class VerificationGraph:
                 raise ValueError("Failed to build server package")
                 
             # Try to start server
-            startup_success = await process_manager.start_server(package_path)
+            startup_success = await process_manager.start_server(package_path, package_name)
             if not startup_success:
                 state.status = "rejected"
                 return state
@@ -180,11 +185,7 @@ class VerificationGraph:
             logger.error(f"Startup verification failed: {str(e)}")
             state.status = "rejected"
             return state
-            
-        finally:
-            # Always try to cleanup
-            if 'process_manager' in locals():
-                await process_manager.stop_server()
+
                 
     def _make_decision(self, state: VerificationState) -> VerificationState:
         """Make final verification decision."""

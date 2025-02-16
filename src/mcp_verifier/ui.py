@@ -1,4 +1,5 @@
 """Streamlit UI for MCP Server Verification."""
+import logging
 
 import streamlit as st
 import tempfile
@@ -282,4 +283,5 @@ def main():
         render_chat_interface()
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     main()
