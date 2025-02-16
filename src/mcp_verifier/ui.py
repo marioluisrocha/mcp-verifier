@@ -10,9 +10,9 @@ from dataclasses import dataclass, field
 from langchain_core.messages import HumanMessage, AIMessage, FunctionMessage
 import os
 
-from core.verification import VerificationGraph
-from core.models import VerificationResult
-from core.upload_handler import UploadConfig
+from src.mcp_verifier.core.verification import VerificationGraph
+from src.mcp_verifier.core.models import VerificationResult
+from src.mcp_verifier.core.upload_handler import UploadConfig
 from src.mcp_client.core.session import SessionManager
 from src.mcp_client.utils.graph import StreamingAgentExecutor
 from src.mcp_client.utils.mcp import ToolDefinition, MCPUtils
@@ -197,6 +197,7 @@ async def process_message(state: ChatState,
             response_placeholder.markdown(current_text)
             # Add assistant response to state
             state.messages.append({"role": "assistant", "content": current_text})
+            st.rerun()
 
 
 def render_chat_interface():
