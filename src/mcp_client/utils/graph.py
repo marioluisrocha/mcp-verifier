@@ -38,9 +38,9 @@ def create_agent_graph(api_key: str, tools: List[Dict[str, Any]]) -> CompiledSta
         Configured execution graph
     """
     # Setup LLM
+    load_dotenv()
     llm = ChatAnthropic(
         model="claude-3-5-sonnet-20241022",
-        anthropic_api_key=api_key,
         streaming=True
     )
     

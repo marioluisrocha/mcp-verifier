@@ -2,6 +2,8 @@
 
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
+
+from dotenv import load_dotenv
 from langchain.agents import AgentExecutor
 from langchain.agents.format_scratchpad import format_to_openai_function_messages
 from langchain.agents.output_parsers import OpenAIFunctionsAgentOutputParser
@@ -54,9 +56,10 @@ class AgentManager:
         Args:
             api_key: Anthropic API key
         """
+
+        load_dotenv()
         self.llm = ChatAnthropic(
             model="claude-3-5-sonnet-20241022",
-            anthropic_api_key=api_key,
             streaming=True
         )
         

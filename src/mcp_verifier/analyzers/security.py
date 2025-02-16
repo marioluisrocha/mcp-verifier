@@ -2,6 +2,8 @@
 
 from typing import List
 import logging
+
+from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_anthropic import ChatAnthropic
 
@@ -34,6 +36,7 @@ class SecurityAnalyzer:
     """Analyzes MCP server code for security vulnerabilities."""
     
     def __init__(self):
+        load_dotenv()
         self.llm = ChatAnthropic(model="claude-3-sonnet-20240229")
         
     async def analyze(self, state: VerificationState) -> VerificationState:

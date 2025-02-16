@@ -1,6 +1,8 @@
 """Description analysis for MCP server verification."""
 
 import logging
+
+from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_anthropic import ChatAnthropic
 
@@ -33,6 +35,7 @@ class DescriptionAnalyzer:
     """Analyzes match between server implementation and description."""
     
     def __init__(self):
+        load_dotenv()
         self.llm = ChatAnthropic(model="claude-3-sonnet-20240229")
         
     async def analyze(self, state: VerificationState) -> VerificationState:

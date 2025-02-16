@@ -2,6 +2,8 @@
 
 from typing import List
 import logging
+
+from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_anthropic import ChatAnthropic
 
@@ -110,13 +112,19 @@ class GuidelinesAnalyzer:
                     except Exception as e:
                         logger.warning(f"Failed to parse guideline violation: {str(e)}")
                 current_violation = {}
-                current_violation['rule'] = line.split(':')[1].strip()
+                split_lines = list(line.split(':'))
+                if len(split_lines) > 1:
+                    current_violation['rule'] = split_lines[1].strip()
                 
             elif line.startswith('- Description:'):
-                current_violation['description'] = line.split(':')[1].strip()
+                split_lines = list(line.split(':'))
+                if len(split_lines) > 1:
+                    current_violation['description'] = split_lines[1].strip()
                 
             elif line.startswith('- Impact:'):
-                current_violation['impact'] = line.split(':')[1].strip()
+                split_lines = list(line.split(':'))
+                if len(split_lines) > 1:
+                    current_violation['impact'] = split_lines[1].strip()
                 
         # Add last violation
         if current_violation and len(current_violation) == 3:
