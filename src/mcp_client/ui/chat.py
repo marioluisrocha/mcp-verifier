@@ -1,7 +1,6 @@
 """Streamlit-based chat interface with LangGraph integration."""
 
 import streamlit as st
-from typing import Optional
 import asyncio
 from dataclasses import dataclass, field
 from langchain_core.messages import HumanMessage, AIMessage, FunctionMessage

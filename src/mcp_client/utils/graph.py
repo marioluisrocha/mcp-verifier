@@ -1,6 +1,8 @@
 """LangGraph-based agent implementation."""
 
 from typing import List, Dict, Any, TypedDict, AsyncIterator
+
+from langgraph.graph.state import CompiledStateGraph
 from typing_extensions import TypeVar
 from dataclasses import dataclass
 
@@ -25,7 +27,7 @@ class StreamEvent:
     type: str  # 'token', 'tool_start', 'tool_end', 'complete'
     data: Any
 
-def create_agent_graph(api_key: str, tools: List[Dict[str, Any]]) -> Graph:
+def create_agent_graph(api_key: str, tools: List[Dict[str, Any]]) -> CompiledStateGraph:
     """Create an agent execution graph.
     
     Args:
@@ -116,7 +118,7 @@ def create_agent_graph(api_key: str, tools: List[Dict[str, Any]]) -> Graph:
     # Set entry point
     workflow.set_entry_point("agent")
     
-    return workflow
+    return workflow.compile()
 
 class StreamingAgentExecutor:
     """Executes agent graph with streaming support."""
