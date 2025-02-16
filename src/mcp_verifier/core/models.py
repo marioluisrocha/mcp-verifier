@@ -43,6 +43,10 @@ class VerificationState(BaseModel):
         default_factory=str,
         description="User-provided server description"
     )
+    server_path: Optional[str] = Field(
+        default=str,
+        description="Path to the server directory"
+    )
     security_issues: List[SecurityIssue] = Field(
         default_factory=list,
         description="List of found security issues"
