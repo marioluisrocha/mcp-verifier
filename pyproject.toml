@@ -2,7 +2,7 @@
 name = "mcp-verifier"
 version = "0.1.0"
 description = "MCP Server Verification Tool"
-authors = ["Your Name <your.email@example.com>"]
+authors = ["Filipp Trigub <filipp.trigub@infolab.ai>"]
 
 [tool.poetry.dependencies]
 python = "^3.10"
